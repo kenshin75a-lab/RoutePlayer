@@ -1,0 +1,24 @@
+{
+  "name": "routeplayer",
+  "version": "1.0.0",
+  "description": "Ride it before you ride it.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kenshin75a-lab/RoutePlayer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kenshin75a-lab/RoutePlayer/issues"
+  },
+  "homepage": "https://github.com/kenshin75a-lab/RoutePlayer#readme",
+  "dependencies": {
+    "vite": "^8.1.2"
+  }
+}
