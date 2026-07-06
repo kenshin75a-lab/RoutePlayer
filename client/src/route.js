@@ -1,132 +1,50 @@
 import { getMap } from './map.js';
-import { GOOGLE_MAP_KEY } from './config.js';
+import { ORS_API_KEY } from './config.js';
 
-let routePolyline;
+let routePolyline = null;
 
-async function geocode(address) {
-  const res = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&region=kr&key=${GOOGLE_MAP_KEY}`
-  );
+const ROUTE_POINTS = [
+  [126.9124, 35.1766],
+  [126.9818, 35.1839],
+];
 
-  const data = await res.json();
-
-  if (data.status !== 'OK') {
-    throw new Error(`Geocoding 실패: ${data.status}`);
-  }
-
-  return {
-    lat: data.results[0].geometry.location.lat,
-    lng: data.results[0].geometry.location.lng,
-  };
-}
-
-function decodePolyline(encoded) {
-  let index = 0;
-  const len = encoded.length;
-  const path = [];
-  let lat = 0;
-  let lng = 0;
-
-  while (index < len) {
-    let b;
-    let shift = 0;
-    let result = 0;
-
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlat = result & 1 ? ~(result >> 1) : result >> 1;
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-
-    const dlng = result & 1 ? ~(result >> 1) : result >> 1;
-    lng += dlng;
-
-    path.push({
-      lat: lat / 1e5,
-      lng: lng / 1e5,
-    });
-  }
-
-  return path;
-}
-
-export async function drawRoute(origin, waypoint, destination) {
+export async function drawRoute(routePoints = ROUTE_POINTS) {
   const map = getMap();
 
   if (!map) {
     throw new Error('지도가 아직 준비되지 않았습니다.');
   }
 
-  document.getElementById('status').textContent = '주소 좌표 변환 중...';
+  document.getElementById('status').textContent = 'ORS 경로 생성 중...';
 
-  const originPoint = await geocode(origin);
-  const waypointPoint = waypoint ? await geocode(waypoint) : null;
-  const destinationPoint = await geocode(destination);
-
-  document.getElementById('status').textContent = 'Routes API 경로 생성 중...';
-
-  const body = {
-    origin: {
-      location: {
-        latLng: originPoint,
-      },
-    },
-    destination: {
-      location: {
-        latLng: destinationPoint,
-      },
-    },
-    travelMode: 'DRIVE',
-    routingPreference: 'TRAFFIC_UNAWARE',
-    computeAlternativeRoutes: false,
-    polylineQuality: 'HIGH_QUALITY',
-    polylineEncoding: 'ENCODED_POLYLINE',
-  };
-
-  if (waypointPoint) {
-    body.intermediates = [
-      {
-        location: {
-          latLng: waypointPoint,
-        },
-      },
-    ];
-  }
-
-  const res = await fetch(
-    'https://routes.googleapis.com/directions/v2:computeRoutes',
+  const response = await fetch(
+    'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
     {
       method: 'POST',
       headers: {
+        Authorization: ORS_API_KEY,
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GOOGLE_MAP_KEY,
-        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline,routes.distanceMeters,routes.duration',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        coordinates: routePoints,
+        instructions: false,
+      }),
     }
   );
 
-  const data = await res.json();
+  const data = await response.json();
 
-  if (!res.ok || !data.routes || data.routes.length === 0) {
-    console.error(data);
-    throw new Error(data.error?.message || 'Routes API 경로 생성 실패');
+  if (!response.ok || !data.features?.length) {
+    console.log('ORS error:', data);
+    throw new Error(data.error?.message || 'ORS 경로 생성 실패');
   }
 
-  const encoded = data.routes[0].polyline.encodedPolyline;
-  const path = decodePolyline(encoded);
+  const coordinates = data.features[0].geometry.coordinates;
+
+  const path = coordinates.map(([lng, lat]) => ({
+    lat,
+    lng,
+  }));
 
   if (routePolyline) {
     routePolyline.setMap(null);
@@ -134,20 +52,19 @@ export async function drawRoute(origin, waypoint, destination) {
 
   routePolyline = new google.maps.Polyline({
     path,
-    geodesic: true,
+    map,
     strokeColor: '#2979ff',
-    strokeOpacity: 1.0,
+    strokeOpacity: 1,
     strokeWeight: 6,
   });
 
-  routePolyline.setMap(map);
-
   const bounds = new google.maps.LatLngBounds();
-  path.forEach((p) => bounds.extend(p));
+  path.forEach((point) => bounds.extend(point));
   map.fitBounds(bounds);
 
-  const distanceKm = (data.routes[0].distanceMeters / 1000).toFixed(1);
+  const distanceKm =
+    data.features[0].properties.summary.distance / 1000;
 
   document.getElementById('status').textContent =
-    `경로 생성 성공 ✅ / 약 ${distanceKm}km`;
+    `경로 생성 성공 ✅ 약 ${distanceKm.toFixed(1)}km`;
 }

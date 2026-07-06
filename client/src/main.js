@@ -2,6 +2,7 @@ import './style.css';
 import { loadGoogleMap } from './map.js';
 import { GOOGLE_MAP_KEY } from './config.js';
 import { drawRoute } from './route.js';
+import { setupPlaces } from './places.js';
 
 document.querySelector('#app').innerHTML = `
 <div class="app">
@@ -46,12 +47,8 @@ document.querySelector('#app').innerHTML = `
 `;
 
 document.getElementById('routeBtn').addEventListener('click', async () => {
-  const origin = document.getElementById('origin').value;
-  const waypoint = document.getElementById('waypoint').value;
-  const destination = document.getElementById('destination').value;
-
   try {
-    await drawRoute(origin, waypoint, destination);
+    await drawRoute();
   } catch (error) {
     document.getElementById('status').textContent =
       `경로 생성 실패 ❌ : ${error.message}`;
@@ -59,4 +56,6 @@ document.getElementById('routeBtn').addEventListener('click', async () => {
   }
 });
 
-loadGoogleMap(GOOGLE_MAP_KEY);
+loadGoogleMap(GOOGLE_MAP_KEY).then(() => {
+  setupPlaces();
+});
